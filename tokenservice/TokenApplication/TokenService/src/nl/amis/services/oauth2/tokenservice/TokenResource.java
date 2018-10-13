@@ -6,8 +6,6 @@ import java.util.Set;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 
-import nl.amis.services.tokenservice.TokenService;
-
 @ApplicationPath("resources")
 public class TokenResource extends Application {
     public Set<Class<?>> getClasses() {

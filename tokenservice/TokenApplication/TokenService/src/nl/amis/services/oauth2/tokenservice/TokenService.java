@@ -43,15 +43,14 @@ public class TokenService {
     private static KeyStore ks;
     private static Properties prop;
     private static ADFLogger logger = ADFLogger.createADFLogger(TokenService.class);
-    private static final String propertiesfile = "nl/amis/services/tokenservice/TokenApplication.properties";
-
+    private static final String propertiesfile = "nl/amis/services/oauth2/tokenservice/TokenApplication.properties";
     private void initProperties() throws IOException {
         if (prop == null) {
             logger.info("Loading properties from: " + propertiesfile);
             InputStream is = TokenResource.class.getClassLoader().getResourceAsStream(propertiesfile);
             prop = new Properties();
             prop.load(is);
-            logger.fine("Properties have been loaded");
+            logger.fine("Properties have been loaded: Size: "+Integer.toString(prop.size()));
         } else {
             logger.fine("Properties have already been loaded");
         }
@@ -70,13 +69,13 @@ public class TokenService {
     @Path("/")
     public String tokenservice(@Context ContainerRequestContext crs) {
         SecurityContext sc = crs.getSecurityContext();
-        String req = crs.getEntityStream().toString();
+        String req = convertStreamToString(crs.getEntityStream());
         String user = "";
         String token = "";
         String output = "";
         try {
             if (!req.startsWith("grant_type=client_credentials")) {
-                throw new Exception("Grant type requested is not 'client credentials'");
+                throw new Exception("Grant type requested is not 'client credentials'. Request body: "+req);
             } else {
                 logger.fine("Request received. 'grant_type=client_credentials'");
             }
@@ -187,6 +186,11 @@ public class TokenService {
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
         return sw.toString();
+    }
+    
+    private String convertStreamToString(java.io.InputStream is) {
+        java.util.Scanner s = new java.util.Scanner(is,"UTF-8").useDelimiter("\\A");
+        return s.hasNext() ? s.next() : "";
     }
 
 }
