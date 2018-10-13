@@ -1,4 +1,4 @@
-package nl.amis.services.tokenservice;
+package nl.amis.services.oauth2.tokenservice;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -24,6 +24,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Date;
 import java.util.Properties;
 
+import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -63,9 +64,10 @@ public class TokenService {
         logger.fine("TokenService constructor completed");
     }
 
-
     @POST
+    @Consumes("application/x-www-form-urlencoded")
     @Produces("application/json")
+    @Path("/")
     public String tokenservice(@Context ContainerRequestContext crs) {
         SecurityContext sc = crs.getSecurityContext();
         String req = crs.getEntityStream().toString();
