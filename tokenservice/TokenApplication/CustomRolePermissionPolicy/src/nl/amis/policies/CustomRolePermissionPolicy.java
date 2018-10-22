@@ -1,5 +1,8 @@
 package nl.amis.policies;
 
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
+
 import java.util.Base64;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -10,6 +13,9 @@ import javax.script.ScriptEngineManager;
 import javax.ws.rs.core.SecurityContext;
 
 import oracle.adf.share.logging.ADFLogger;
+
+import oracle.security.jps.runtime.ActionExecutor;
+import oracle.security.jps.runtime.SubjectSecurity;
 
 import oracle.wsm.common.sdk.IContext;
 import oracle.wsm.common.sdk.IResult;
@@ -29,6 +35,8 @@ import org.glassfish.jersey.server.ContainerRequest;
 
 public class CustomRolePermissionPolicy extends AssertionExecutor {
     private ScriptEngine engine;
+    private String request_user_name;
+    private SecurityContext securityContext;
 
     public void initEngine() {
         ScriptEngineManager sem = new ScriptEngineManager();
@@ -60,19 +68,18 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
             logger.info("Valid users: "+valid_users);
             
             RESTHttpMessageContext messageContext = (RESTHttpMessageContext) Context;
-            logger.info("messageContext properties: "+messageContext.getAllProperties().toString());
+            logger.info("MessageContext properties: "+messageContext.getAllProperties().toString());
 
             ContainerRequest containerRequest = (ContainerRequest) messageContext.getProperty("oracle.wsm.rest.request.context");
             logger.info("Obtained containerRequest");
             IResult result = new Result();
-            String request_user_name = "";
-            SecurityContext securityContext = null;
             
             if (containerRequest == null) {
                 logger.info("containerRequest is null!");
                 result.setStatus(IResult.FAILED);
                 result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
             } else {
+                
                 logger.fine("containerRequest properties");
                 for (String propName : containerRequest.getPropertyNames()) {
                     logger.fine("Property: "+propName+" class: "+containerRequest.getProperty(propName).getClass().getName()+" string: "+containerRequest.getProperty(propName).toString());
@@ -98,13 +105,39 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 logger.info("Obtained JSON map of size: "+Integer.toString(contents.size()));
                 request_user_name = contents.get("sub").toString();
                 logger.info("Obtained user name: "+request_user_name);
-                securityContext = containerRequest.getSecurityContext();
+                
+                
+                //securityContext = containerRequest.getSecurityContext();
+                //based on https://www.oracle.com/technetwork/articles/idm/mishra-id-opss-2088117.html
+                ActionExecutor ae = AccessController.doPrivileged(new PrivilegedExceptionAction
+                         <ActionExecutor>() {
+                                public ActionExecutor run() throws Exception{
+                                    try {
+                                       return SubjectSecurity.getInstance().getActionExecutor(request_user_name);
+                                    } catch (Exception e) {
+                                       logger.info("Error in ActionExecutor",e);
+                                       return null;
+                                    }
+                                }
+                            });
+
+                
+                ae.execute(new PrivilegedExceptionAction<Object>() {
+                        public Object run() throws Exception{
+                            securityContext = containerRequest.getSecurityContext();
+                            return null;
+                        }
+                    });
+                
                 if (securityContext == null) {
                     logger.info("containerRequest securityContext is null!");
                     result.setStatus(IResult.FAILED);
                     result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
                 } else {
                     logger.info("containerRequest securityContext is available");
+                    if (securityContext.getUserPrincipal() != null && securityContext.getUserPrincipal().toString().length()>0) {
+                        logger.info("containerRequest securityContext user principle is available");
+                    }
                 }
             }
 
