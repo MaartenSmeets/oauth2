@@ -1,10 +1,18 @@
 package nl.amis.policies;
 
+import java.util.Base64;
+import java.util.Map;
+
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+
+import javax.ws.rs.core.SecurityContext;
+
 import oracle.adf.share.logging.ADFLogger;
 
 import oracle.wsm.common.sdk.IContext;
-import oracle.wsm.common.sdk.IMessageContext;
 import oracle.wsm.common.sdk.IResult;
+import oracle.wsm.common.sdk.RESTHttpMessageContext;
 import oracle.wsm.common.sdk.Result;
 import oracle.wsm.common.sdk.WSMException;
 import oracle.wsm.policy.model.IAssertion;
@@ -16,11 +24,21 @@ import oracle.wsm.policy.model.impl.SimpleAssertion;
 import oracle.wsm.policyengine.IExecutionContext;
 import oracle.wsm.policyengine.impl.AssertionExecutor;
 
+import org.glassfish.jersey.server.ContainerRequest;
+
 public class CustomRolePermissionPolicy extends AssertionExecutor {
+    private ScriptEngine engine;
+
+    public void initEngine() {
+        ScriptEngineManager sem = new ScriptEngineManager();
+        this.engine = sem.getEngineByName("javascript");
+    }
+
     private static ADFLogger logger = ADFLogger.createADFLogger(CustomRolePermissionPolicy.class);
 
     public CustomRolePermissionPolicy() {
         super();
+        initEngine();
     }
 
     @Override
@@ -40,33 +58,62 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
             String valid_users = propertyset.getPropertyByName("valid_users").getValue();
             logger.info("Valid users: "+valid_users);
             
-            IMessageContext messageContext = (IMessageContext) Context;
+            RESTHttpMessageContext messageContext = (RESTHttpMessageContext) Context;
             logger.info("messageContext properties: "+messageContext.getAllProperties().toString());
 
-            String security_subject = "";    
-            try {
-                security_subject = messageContext.getProperty(IMessageContext.SECURITY_SUBJECT).toString();
-            } catch (NullPointerException e) {
-                logger.info("Security subject not found");
-            }
+            ContainerRequest containerRequest = (ContainerRequest) messageContext.getProperty("oracle.wsm.rest.request.context");
+            logger.info("Obtained containerRequest");
+            IResult result = new Result();
+            String request_user_name = "";
+            SecurityContext securityContext = null;
             
-            String user_name = "";
-            
-            try {
-                user_name = messageContext.getProperty(IMessageContext.USER_NAME).toString();
-            } catch (NullPointerException e) {
-                logger.info("User name not found");
+            if (containerRequest == null) {
+                logger.info("containerRequest is null!");
+                result.setStatus(IResult.FAILED);
+                result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
+            } else {
+                logger.fine("containerRequest properties");
+                for (String propName : containerRequest.getPropertyNames()) {
+                    logger.fine("Property: "+propName+" class: "+containerRequest.getProperty(propName).getClass().getName()+" string: "+containerRequest.getProperty(propName).toString());
+                }
+                
+                logger.fine("containerRequest headers");
+                for (String propName : containerRequest.getHeaders().keySet()) {
+                    logger.fine("Header: "+propName+" value: "+containerRequest.getHeaderString(propName));
+                }
+                
+                logger.info("Parsing Authorization header");
+                String JWTToken = containerRequest.getHeaderString("Authorization");
+                String[] JWTparts = JWTToken.split(".");
+                String JWTbody=JWTparts[1];
+                String JWTbodyDecoded = new String(Base64.getDecoder().decode(JWTbody));
+                logger.info("Obtained decoded JWT body");
+                String script = "Java.asJSONCompatible(" + JWTbodyDecoded + ")";
+                Object JSresult = this.engine.eval(script);
+                Map contents = (Map) JSresult;
+                request_user_name = contents.get("sub").toString();
+                logger.info("Obtained user name: "+request_user_name);
+                securityContext = containerRequest.getSecurityContext();
+                if (securityContext == null) {
+                    logger.info("containerRequest securityContext is null!");
+                    result.setStatus(IResult.FAILED);
+                    result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
+                } else {
+                    logger.info("containerRequest securityContext is available");
+                }
             }
 
-            IResult result = new Result();
             if (valid_users != null && valid_users.trim().length() > 0) {
                 String[] valid_users_array = valid_users.split(",");
                 boolean isPresent = false;
+                logger.info("Checking valid users");
                 for (String valid_user : valid_users_array) {
-                    if (user_name.equals(valid_user.trim())) {
+                    if (request_user_name.equals(valid_user.trim())) {
                         isPresent = true;
+                        logger.info("User is in list of valid users");
                     }
                 }
+                
                 if (isPresent) {
                     result.setStatus(IResult.SUCCEEDED);
                 } else {
@@ -76,6 +123,29 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
             } else {
                 result.setStatus(IResult.SUCCEEDED);
             }
+            
+            if (valid_roles != null && valid_roles.trim().length() > 0) {
+                String[] valid_roles_array = valid_roles.split(",");
+                boolean isPresent = false;
+                
+                logger.info("Checking valid roles");
+                for (String valid_role : valid_roles_array) {
+                    if (securityContext.isUserInRole(valid_role.trim())) {
+                        isPresent = true;
+                        logger.info("User is in valid role: "+valid_role.trim());
+                    }
+                }
+                
+                if (isPresent) {
+                    result.setStatus(IResult.SUCCEEDED);
+                } else {
+                    result.setStatus(IResult.FAILED);
+                    result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
+                }
+            } else {
+                result.setStatus(IResult.SUCCEEDED);
+            }
+     
             String resultString;
             switch (result.getStatus()) {
             case IResult.SUCCEEDED:
@@ -95,7 +165,6 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 break;
             }
             logger.info("Request completed with: " + resultString);
-
             return result;
         } catch (Exception e) {
             logger.severe("Request not completed",e);
