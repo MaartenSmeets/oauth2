@@ -2,6 +2,7 @@ package nl.amis.policies;
 
 import java.util.Base64;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -84,13 +85,17 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 
                 logger.info("Parsing Authorization header");
                 String JWTToken = containerRequest.getHeaderString("Authorization");
-                String[] JWTparts = JWTToken.split(".");
+                logger.info("Parsing Authorization header: "+JWTToken);
+                String[] JWTparts = JWTToken.split(Pattern.quote("."));
+                logger.info("Split token in parts: "+Integer.toString(JWTparts.length));
                 String JWTbody=JWTparts[1];
+                logger.info("JWT body: "+JWTbody);
                 String JWTbodyDecoded = new String(Base64.getDecoder().decode(JWTbody));
                 logger.info("Obtained decoded JWT body");
                 String script = "Java.asJSONCompatible(" + JWTbodyDecoded + ")";
                 Object JSresult = this.engine.eval(script);
                 Map contents = (Map) JSresult;
+                logger.info("Obtained JSON map of size: "+Integer.toString(contents.size()));
                 request_user_name = contents.get("sub").toString();
                 logger.info("Obtained user name: "+request_user_name);
                 securityContext = containerRequest.getSecurityContext();
@@ -103,6 +108,8 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 }
             }
 
+            String user_check_result="";
+            //Check valid users
             if (valid_users != null && valid_users.trim().length() > 0) {
                 String[] valid_users_array = valid_users.split(",");
                 boolean isPresent = false;
@@ -115,16 +122,21 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 }
                 
                 if (isPresent) {
-                    result.setStatus(IResult.SUCCEEDED);
+                    user_check_result = "valid";
+                    
                 } else {
-                    result.setStatus(IResult.FAILED);
-                    result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
+                    user_check_result = "not valid";
                 }
             } else {
-                result.setStatus(IResult.SUCCEEDED);
+                user_check_result = "not checked";
             }
             
-            if (valid_roles != null && valid_roles.trim().length() > 0) {
+            logger.info("User check result: "+user_check_result);
+
+            //If already confirmed valid user, skip role check
+            //Check user role
+            String role_check_result = "";
+            if (valid_roles != null && valid_roles.trim().length() > 0 && !user_check_result.equals("valid")) {
                 String[] valid_roles_array = valid_roles.split(",");
                 boolean isPresent = false;
                 
@@ -133,17 +145,30 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                     if (securityContext.isUserInRole(valid_role.trim())) {
                         isPresent = true;
                         logger.info("User is in valid role: "+valid_role.trim());
+                    } else {
+                        logger.info("User is not in valid role: "+valid_role.trim());
                     }
                 }
                 
                 if (isPresent) {
-                    result.setStatus(IResult.SUCCEEDED);
+                    role_check_result = "valid";
                 } else {
-                    result.setStatus(IResult.FAILED);
-                    result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
+                    role_check_result = "not valid";
                 }
             } else {
+                role_check_result = "not checked";
+            }
+            
+            logger.info("Role check result: "+role_check_result);
+            
+            // valid results: 
+            // - one of them is valid
+            // - both of them have not been checked
+            if ((user_check_result.equals("valid") || role_check_result.equals("valid")) || (user_check_result.equals("not checked") && role_check_result.equals("not checked") )) {
                 result.setStatus(IResult.SUCCEEDED);
+            } else {
+                result.setStatus(IResult.FAILED);
+                result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
             }
      
             String resultString;
