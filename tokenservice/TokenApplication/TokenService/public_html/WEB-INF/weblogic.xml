@@ -3,7 +3,7 @@
                   xsi:schemaLocation="http://xmlns.oracle.com/weblogic/weblogic-web-app http://xmlns.oracle.com/weblogic/weblogic-web-app/1.7/weblogic-web-app.xsd"
                   xmlns="http://xmlns.oracle.com/weblogic/weblogic-web-app">
     <security-role-assignment>
-        <role-name>tokenuser</role-name>
-        <principal-name>Administrators</principal-name>
+        <role-name>tokenusers</role-name>
+        <principal-name>tokenusers</principal-name>
     </security-role-assignment>
 </weblogic-web-app>

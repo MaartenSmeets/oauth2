@@ -22,7 +22,7 @@
             <http-method>POST</http-method>
         </web-resource-collection>
         <auth-constraint>
-            <role-name>tokenuser</role-name>
+            <role-name>tokenusers</role-name>
         </auth-constraint>
         <user-data-constraint>
             <description>SSL required</description>
@@ -34,6 +34,6 @@
         <realm-name>default</realm-name>
     </login-config>
     <security-role>
-        <role-name>tokenuser</role-name>
+        <role-name>tokenusers</role-name>
     </security-role>
 </web-app>
