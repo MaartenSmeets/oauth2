@@ -1,8 +1,5 @@
 package nl.amis.policies;
 
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
-
 import java.util.Base64;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -10,12 +7,7 @@ import java.util.regex.Pattern;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
-import javax.ws.rs.core.SecurityContext;
-
 import oracle.adf.share.logging.ADFLogger;
-
-import oracle.security.jps.runtime.ActionExecutor;
-import oracle.security.jps.runtime.SubjectSecurity;
 
 import oracle.wsm.common.sdk.IContext;
 import oracle.wsm.common.sdk.IResult;
@@ -33,19 +25,17 @@ import oracle.wsm.policyengine.impl.AssertionExecutor;
 
 import org.glassfish.jersey.server.ContainerRequest;
 
-public class CustomRolePermissionPolicy extends AssertionExecutor {
+public class CustomUserPermissionPolicy extends AssertionExecutor {
     private ScriptEngine engine;
-    private String request_user_name;
-    private SecurityContext securityContext;
 
     public void initEngine() {
         ScriptEngineManager sem = new ScriptEngineManager();
         this.engine = sem.getEngineByName("javascript");
     }
 
-    private static ADFLogger logger = ADFLogger.createADFLogger(CustomRolePermissionPolicy.class);
+    private static ADFLogger logger = ADFLogger.createADFLogger(CustomUserPermissionPolicy.class);
 
-    public CustomRolePermissionPolicy() {
+    public CustomUserPermissionPolicy() {
         super();
         initEngine();
     }
@@ -54,7 +44,7 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
     public IResult execute(IContext Context) throws WSMException {
         logger.info("Request received");
         logger.info("Context is of class: "+Context.getClass().getName());
-        
+        String request_user_name = "";
         try {
             //Retrieve Policy bindings from Policy File
             IAssertionBindings bindings = ((SimpleAssertion) (this.assertion)).getBindings();
@@ -62,8 +52,6 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
             IConfig config = bindings.getConfigs().get(0);
             //Get Property set name of policy
             IPropertySet propertyset = config.getPropertySets().get(0);
-            String valid_roles = propertyset.getPropertyByName("valid_roles").getValue();
-            logger.info("Valid roles: "+valid_roles);
             String valid_users = propertyset.getPropertyByName("valid_users").getValue();
             logger.info("Valid users: "+valid_users);
             
@@ -79,12 +67,6 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 result.setStatus(IResult.FAILED);
                 result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
             } else {
-                
-                logger.fine("containerRequest properties");
-                for (String propName : containerRequest.getPropertyNames()) {
-                    logger.fine("Property: "+propName+" class: "+containerRequest.getProperty(propName).getClass().getName()+" string: "+containerRequest.getProperty(propName).toString());
-                }
-                
                 logger.fine("containerRequest headers");
                 for (String propName : containerRequest.getHeaders().keySet()) {
                     logger.fine("Header: "+propName+" value: "+containerRequest.getHeaderString(propName));
@@ -105,40 +87,6 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
                 logger.info("Obtained JSON map of size: "+Integer.toString(contents.size()));
                 request_user_name = contents.get("sub").toString();
                 logger.info("Obtained user name: "+request_user_name);
-                
-                
-                //securityContext = containerRequest.getSecurityContext();
-                //based on https://www.oracle.com/technetwork/articles/idm/mishra-id-opss-2088117.html
-                ActionExecutor ae = AccessController.doPrivileged(new PrivilegedExceptionAction
-                         <ActionExecutor>() {
-                                public ActionExecutor run() throws Exception{
-                                    try {
-                                       return SubjectSecurity.getInstance().getActionExecutor(request_user_name);
-                                    } catch (Exception e) {
-                                       logger.info("Error in ActionExecutor",e);
-                                       return null;
-                                    }
-                                }
-                            });
-
-                
-                ae.execute(new PrivilegedExceptionAction<Object>() {
-                        public Object run() throws Exception{
-                            securityContext = containerRequest.getSecurityContext();
-                            return null;
-                        }
-                    });
-                
-                if (securityContext == null) {
-                    logger.info("containerRequest securityContext is null!");
-                    result.setStatus(IResult.FAILED);
-                    result.setFault(new WSMException(WSMException.FAULT_FAILED_CHECK));
-                } else {
-                    logger.info("containerRequest securityContext is available");
-                    if (securityContext.getUserPrincipal() != null && securityContext.getUserPrincipal().toString().length()>0) {
-                        logger.info("containerRequest securityContext user principle is available");
-                    }
-                }
             }
 
             String user_check_result="";
@@ -166,38 +114,10 @@ public class CustomRolePermissionPolicy extends AssertionExecutor {
             
             logger.info("User check result: "+user_check_result);
 
-            //If already confirmed valid user, skip role check
-            //Check user role
-            String role_check_result = "";
-            if (valid_roles != null && valid_roles.trim().length() > 0 && !user_check_result.equals("valid")) {
-                String[] valid_roles_array = valid_roles.split(",");
-                boolean isPresent = false;
-                
-                logger.info("Checking valid roles");
-                for (String valid_role : valid_roles_array) {
-                    if (securityContext.isUserInRole(valid_role.trim())) {
-                        isPresent = true;
-                        logger.info("User is in valid role: "+valid_role.trim());
-                    } else {
-                        logger.info("User is not in valid role: "+valid_role.trim());
-                    }
-                }
-                
-                if (isPresent) {
-                    role_check_result = "valid";
-                } else {
-                    role_check_result = "not valid";
-                }
-            } else {
-                role_check_result = "not checked";
-            }
-            
-            logger.info("Role check result: "+role_check_result);
-            
             // valid results: 
             // - one of them is valid
             // - both of them have not been checked
-            if ((user_check_result.equals("valid") || role_check_result.equals("valid")) || (user_check_result.equals("not checked") && role_check_result.equals("not checked") )) {
+            if (user_check_result.equals("valid") || (user_check_result.equals("not checked"))) {
                 result.setStatus(IResult.SUCCEEDED);
             } else {
                 result.setStatus(IResult.FAILED);

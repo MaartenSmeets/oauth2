@@ -107,7 +107,7 @@
    </hash>
    <hash n="oracle.jdeveloper.deploy.dt.DeploymentProfiles">
       <hash n="profileDefinitions">
-         <hash n="customrolepermissionpolicy">
+         <hash n="customuserpermissionpolicy">
             <hash n="archiveOptions">
                <value n="hasManifest" v="true"/>
             </hash>
@@ -136,20 +136,13 @@
                   </hash>
                </list>
             </hash>
-            <url n="jarURL" path="deploy/customrolepermissionpolicy.jar"/>
-            <hash n="libraryDependencies">
-               <list n="unselectedLibraries">
-                  <string v="Oracle.logging-utils.jar"/>
-                  <string v="Wsm-agent-core.jar"/>
-                  <string v="Wsm-policy-core.jar"/>
-               </list>
-            </hash>
+            <url n="jarURL" path="deploy/customuserpermissionpolicy.jar"/>
             <value n="profileClass" v="oracle.jdeveloper.deploy.jar.ArchiveProfile"/>
-            <value n="profileName" v="customrolepermissionpolicy"/>
+            <value n="profileName" v="customuserpermissionpolicy"/>
          </hash>
       </hash>
       <list n="profileList">
-         <string v="customrolepermissionpolicy"/>
+         <string v="customuserpermissionpolicy"/>
       </list>
    </hash>
    <hash n="oracle.jdeveloper.model.J2eeSettings">
