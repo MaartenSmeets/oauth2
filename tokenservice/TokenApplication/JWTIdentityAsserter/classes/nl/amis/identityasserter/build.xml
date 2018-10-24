@@ -1,0 +1,40 @@
+<project name="Build" default="all" basedir=".">
+ 
+<property name="fileDir" value="test" />
+ 
+<target name="all" depends="build"/>
+ 
+ <target name="build" depends="clean,build.mdf,build.mjf"/>
+ 
+  <target name="clean">
+    <delete dir="${fileDir}" failonerror="false"/>
+    <delete file="JWTIdentityAsserter.jar" failonerror="false"/>
+    <echo message="Clean finish" />
+  </target>
+ 
+  <!-- helper to build an MDF (mbean definition file) -->
+    <target name="build.mdf">
+        <java dir="${basedir}" fork="false" classname="weblogic.management.commo.WebLogicMBeanMaker">
+            <arg line="-files ${fileDir}" />
+            <arg value="-createStubs" />
+            <arg line="-MDF JWTIdentityAsserter.xml" />
+        </java>
+        <echo message="Created Supporting Classes" />
+    </target>
+ 
+    <target name="build.mjf">
+ 
+        <copy todir="${fileDir}" flatten="true">
+            <fileset dir=".">
+              <include name="*.java" />
+            </fileset>
+        </copy>
+ 
+        <java dir="${basedir}" fork="false" classname="weblogic.management.commo.WebLogicMBeanMaker">
+            <arg line="-MJF JWTIdentityAsserter.jar" />
+            <arg line="-files ${fileDir}" />
+        </java>
+        <echo message="Created Mbean Jar" />
+    </target>
+ 
+</project>
