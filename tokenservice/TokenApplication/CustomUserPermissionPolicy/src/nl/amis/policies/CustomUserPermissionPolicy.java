@@ -1,11 +1,18 @@
 package nl.amis.policies;
 
+import java.security.Principal;
+
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+
+import javax.security.auth.Subject;
 
 import oracle.adf.share.logging.ADFLogger;
 
@@ -44,7 +51,7 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
     public IResult execute(IContext Context) throws WSMException {
         logger.info("Request received");
         logger.info("Context is of class: "+Context.getClass().getName());
-        String request_user_name = "";
+        Set <String> principles = new HashSet<String>();
         try {
             //Retrieve Policy bindings from Policy File
             IAssertionBindings bindings = ((SimpleAssertion) (this.assertion)).getBindings();
@@ -52,14 +59,13 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
             IConfig config = bindings.getConfigs().get(0);
             //Get Property set name of policy
             IPropertySet propertyset = config.getPropertySets().get(0);
-            String valid_users = propertyset.getPropertyByName("valid_users").getValue();
-            logger.info("Valid users: "+valid_users);
+            String valid_principles = propertyset.getPropertyByName("valid_principles").getValue();
+            logger.info("Valid principles: "+valid_principles);
             
             RESTHttpMessageContext messageContext = (RESTHttpMessageContext) Context;
             logger.info("MessageContext properties: "+messageContext.getAllProperties().toString());
 
             ContainerRequest containerRequest = (ContainerRequest) messageContext.getProperty("oracle.wsm.rest.request.context");
-            
             
             logger.info("Obtained containerRequest");
             
@@ -67,7 +73,12 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
             if (subject == null) {
                 logger.info("Subject is null");
             } else {
-                logger.info("oracle.integration.platform.common.subject is of class "+messageContext.getProperty("oracle.integration.platform.common.subject").getClass().getName());    
+                logger.info("Subject is not null. Adding principles from subject");
+                Subject mySubject = (Subject) subject;
+                for (Principal myPrinciple : mySubject.getPrincipals()) {
+                    logger.fine("Adding principle: "+myPrinciple.getName());
+                    principles.add(myPrinciple.getName());
+                }
             }
             
             IResult result = new Result();
@@ -95,24 +106,20 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
                 Object JSresult = this.engine.eval(script);
                 Map contents = (Map) JSresult;
                 logger.info("Obtained JSON map of size: "+Integer.toString(contents.size()));
-                request_user_name = contents.get("sub").toString();
-                logger.info("Obtained user name: "+request_user_name);
+                principles.add(contents.get("sub").toString());
+                logger.info("Obtained user name: "+contents.get("sub").toString());
             }
 
             String user_check_result="";
             //Check valid users
-            if (valid_users != null && valid_users.trim().length() > 0) {
-                String[] valid_users_array = valid_users.split(",");
-                boolean isPresent = false;
-                logger.info("Checking valid users");
-                for (String valid_user : valid_users_array) {
-                    if (request_user_name.equals(valid_user.trim())) {
-                        isPresent = true;
-                        logger.info("User is in list of valid users");
-                    }
-                }
+            if (valid_principles != null && valid_principles.trim().length() > 0) {
+                String[] valid_principles_array = valid_principles.split(",");
+                Set<String> valid_principles_set = new HashSet<>(Arrays.asList(valid_principles_array));
                 
-                if (isPresent) {
+                valid_principles_set.forEach( (principle) -> principle.trim());
+                valid_principles_set.retainAll(principles);
+               
+                if (valid_principles_set.size()>0) {
                     user_check_result = "valid";
                     
                 } else {
