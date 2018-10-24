@@ -25,8 +25,8 @@
             <role-name>tokenusers</role-name>
         </auth-constraint>
         <user-data-constraint>
-            <description>SSL required</description>
-            <transport-guarantee>CONFIDENTIAL</transport-guarantee>
+            <description>No TLS required</description>
+            <transport-guarantee>NONE</transport-guarantee>
         </user-data-constraint>
     </security-constraint>
     <login-config>
