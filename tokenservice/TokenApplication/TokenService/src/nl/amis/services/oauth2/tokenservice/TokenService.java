@@ -73,6 +73,7 @@ public class TokenService {
         String user = "";
         String token = "";
         String output = "";
+        Long expirytime = new Long(0);
         try {
             if (!req.startsWith("grant_type=client_credentials")) {
                 throw new Exception("Grant type requested is not 'client credentials'. Request body: "+req);
@@ -145,10 +146,17 @@ public class TokenService {
             logger.fine("JWSSigner created");
 
             // Prepare JWT with claims set
-            logger.fine("Creating claimsSet: subject ("+user+"), issuer ("+prop.getProperty("tokenissuer")+"), expirationtime,issuetime");
+            Date now = new Date();
+            expirytime = Long.parseLong(prop.getProperty("tokenexpiry"));
+            logger.fine("Token set to expire in: "+expirytime.toString());
+            Date expires = new Date(now.getTime() + expirytime);
+            logger.fine("Now: "+now+" Expires: "+expires);
+            
+            logger.fine("Creating claimsSet: subject ("+user+"), issuer ("+prop.getProperty("tokenissuer")+"), expirationtime ("+expires.toString()+"),issuetime ("+now.toString()+")");
+            
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder().subject(user)
                                                                .issuer(prop.getProperty("tokenissuer"))
-                                                               .expirationTime(new Date(new Date().getTime() + 60 * 1000))
+                                                               .expirationTime(expires)
                                                                .issueTime(new Date(new Date().getTime()))
                                                                .build();
             logger.fine("ClaimsSet created");
@@ -175,7 +183,7 @@ public class TokenService {
             token = "";
         }
         output = String.format("{ \"access_token\" : \"%s\",\n" + "  \"scope\"        : \"read write\",\n" +
-                          "  \"token_type\"   : \"Bearer\",\n" + "  \"expires_in\"   : 86400\n}", token);
+                          "  \"token_type\"   : \"Bearer\",\n" + "  \"expires_in\"   : %s\n}", token,expirytime);
 
         logger.finer("Returning token: " + output);
         return output;

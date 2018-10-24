@@ -1,26 +1,32 @@
 package nl.amis.identityasserter;
- 
+
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.AppConfigurationEntry;
+
+import javax.servlet.http.HttpServletRequest;
+
+import oracle.adf.share.logging.ADFLogger;
+
 import weblogic.management.security.ProviderMBean;
+
 import weblogic.security.service.ContextHandler;
 import weblogic.security.spi.AuthenticationProviderV2;
 import weblogic.security.spi.IdentityAsserterV2;
 import weblogic.security.spi.IdentityAssertionException;
 import weblogic.security.spi.PrincipalValidator;
 import weblogic.security.spi.SecurityServices;
-import javax.servlet.http.HttpServletRequest;
- 
+
 public final class JWTIdentityAsserterProviderImpl implements AuthenticationProviderV2, IdentityAsserterV2
 {
   final static private String TOKEN_TYPE   = "JWTPerimeterAtnToken"; 
   final static private String TOKEN_PREFIX = "username="; 
+  private static ADFLogger logger = ADFLogger.createADFLogger(JWTIdentityAsserterProviderImpl.class);
  
   private String description; 
  
   public void initialize(ProviderMBean mbean, SecurityServices services)
   {
-    System.out.println("JWTIdentityAsserterProviderImpl.initialize");
+    logger.info("JWTIdentityAsserterProviderImpl.initialize");
     JWTIdentityAsserterMBean myMBean = (JWTIdentityAsserterMBean)mbean;
     description                         = myMBean.getDescription() + "\n" + myMBean.getVersion();
   }
@@ -32,7 +38,7 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
  
   public void shutdown()
   {
-    System.out.println("JWTIdentityAsserterProviderImpl.shutdown");
+    logger.info("JWTIdentityAsserterProviderImpl.shutdown");
   }
  
   public IdentityAsserterV2 getIdentityAsserter()
@@ -42,21 +48,21 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
  
   public CallbackHandler assertIdentity(String type, Object token, ContextHandler context) throws IdentityAssertionException
   {
-    System.out.println("JWTIdentityAsserterProviderImpl.assertIdentity");
-    System.out.println("\tType\t\t= "  + type);
-    System.out.println("\tToken\t\t= " + token);
+    logger.info("JWTIdentityAsserterProviderImpl.assertIdentity");
+    logger.info("\tType\t\t= "  + type);
+    logger.info("\tToken\t\t= " + token);
  
     Object requestValue = context.getValue("com.bea.contextelement.servlet.HttpServletRequest");
     if ((requestValue == null) || (!(requestValue instanceof HttpServletRequest)))
       {
-       System.out.println("do nothing");
+       logger.info("do nothing");
        }
    else{
        HttpServletRequest request = (HttpServletRequest) requestValue;
        java.util.Enumeration names = request.getHeaderNames();
         while(names.hasMoreElements()){
             String name = (String) names.nextElement();
-            System.out.println(name + ":" + request.getHeader(name));
+            logger.info(name + ":" + request.getHeader(name));
         }
    }
  
@@ -65,7 +71,7 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
       String error =
         "JWTIdentityAsserter received unknown token type \"" + type + "\"." +
         " Expected " + TOKEN_TYPE;
-      System.out.println("\tError: " + error);
+      logger.info("\tError: " + error);
       throw new IdentityAssertionException(error);
     }
  
@@ -74,7 +80,7 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
       String error = 
         "JWTIdentityAsserter received unknown token class \"" + token.getClass() + "\"." +
         " Expected a byte[].";
-      System.out.println("\tError: " + error);
+      logger.info("\tError: " + error);
       throw new IdentityAssertionException(error);
     }
  
@@ -83,7 +89,7 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
     if (tokenBytes == null || tokenBytes.length < 1) {
       String error =
         "JWTIdentityAsserter received empty token byte array";
-      System.out.println("\tError: " + error);
+      logger.info("\tError: " + error);
       throw new IdentityAssertionException(error);
     }
  
@@ -94,13 +100,13 @@ public final class JWTIdentityAsserterProviderImpl implements AuthenticationProv
       String error =
         "JWTIdentityAsserter received unknown token string \"" + type + "\"." +
         " Expected " + TOKEN_PREFIX + "username";
-      System.out.println("\tError: " + error);
+      logger.info("\tError: " + error);
       throw new IdentityAssertionException(error);
     }
  
     // extract the username from the token
     String userName = tokenStr.substring(TOKEN_PREFIX.length());
-    System.out.println("\tuserName\t= " + userName);
+    logger.info("\tuserName\t= " + userName);
  
     // store it in a callback handler that authenticators can use
     // to retrieve the username.

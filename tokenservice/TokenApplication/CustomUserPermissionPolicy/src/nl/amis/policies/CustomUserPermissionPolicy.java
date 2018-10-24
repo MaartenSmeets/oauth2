@@ -59,7 +59,17 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
             logger.info("MessageContext properties: "+messageContext.getAllProperties().toString());
 
             ContainerRequest containerRequest = (ContainerRequest) messageContext.getProperty("oracle.wsm.rest.request.context");
+            
+            
             logger.info("Obtained containerRequest");
+            
+            Object subject = messageContext.getProperty("oracle.integration.platform.common.subject");
+            if (subject == null) {
+                logger.info("Subject is null");
+            } else {
+                logger.info("oracle.integration.platform.common.subject is of class "+messageContext.getProperty("oracle.integration.platform.common.subject").getClass().getName());    
+            }
+            
             IResult result = new Result();
             
             if (containerRequest == null) {
