@@ -13,6 +13,8 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+import java.nio.charset.Charset;
+
 import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.KeyStore.PasswordProtection;
@@ -22,6 +24,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 
 import javax.ws.rs.Consumes;
@@ -37,6 +40,9 @@ import oracle.adf.share.logging.ADFLogger;
 import oracle.security.jps.JpsContext;
 import oracle.security.jps.JpsContextFactory;
 import oracle.security.jps.service.keystore.KeyStoreService;
+
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 
 @Path("tokenservice")
 public class TokenService {
@@ -75,7 +81,20 @@ public class TokenService {
         String output = "";
         Long expirytime = new Long(0);
         try {
-            if (!req.startsWith("grant_type=client_credentials")) {
+            String name="";
+            String value="";
+            Boolean found_client_credentials_request = false;
+            
+            List<NameValuePair> pairs = URLEncodedUtils.parse(req, Charset.forName("UTF-8"));
+            for (NameValuePair i: pairs) {
+                  name = i.getName();
+                  value = i.getValue();
+                  if (name.equals("grant_type") && value.equals("client_credentials")) {
+                    found_client_credentials_request=true;
+                    break;
+                  }
+            }
+            if (!found_client_credentials_request) {
                 throw new Exception("Grant type requested is not 'client credentials'. Request body: "+req);
             } else {
                 logger.fine("Request received. 'grant_type=client_credentials'");
