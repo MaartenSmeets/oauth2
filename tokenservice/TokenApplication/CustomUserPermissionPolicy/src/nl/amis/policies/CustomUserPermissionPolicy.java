@@ -24,7 +24,6 @@ import oracle.wsm.policy.model.impl.SimpleAssertion;
 import oracle.wsm.policyengine.IExecutionContext;
 import oracle.wsm.policyengine.impl.AssertionExecutor;
 
-import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.ContainerResponse;
 
 public class CustomUserPermissionPolicy extends AssertionExecutor {
@@ -55,11 +54,8 @@ public class CustomUserPermissionPolicy extends AssertionExecutor {
             RESTHttpMessageContext messageContext = (RESTHttpMessageContext) Context;
             logger.fine("MessageContext properties: " + messageContext.getAllProperties().toString());
 
-            ContainerRequest containerRequest =
-                (ContainerRequest) messageContext.getProperty("oracle.wsm.rest.request.context");
-            logger.fine("Obtained containerRequest");
-            ContainerResponse containerResponse =
-                (ContainerResponse) messageContext.getProperty("oracle.wsm.rest.response.context");
+            //same way as below can be used to fetch the ContainerRequest which containt HTTP headers
+            ContainerResponse containerResponse = (ContainerResponse) messageContext.getProperty("oracle.wsm.rest.response.context");
 
             if (containerResponse == null) {
                 logger.fine("containerResponse is null so processing request and checking subject");
