@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<policy-config> 
+    <policy-model-config> 
+        <entry>
+            <key namespace="http://schemas.oracle.com/ws/2006/01/securitypolicy" element-name="validateTokenSignatureAssertion"/>
+            <executor-classname>nl.amis.policies.ValidateTokenSignaturePolicy</executor-classname>
+        </entry> 
+    </policy-model-config> 
+</policy-config>

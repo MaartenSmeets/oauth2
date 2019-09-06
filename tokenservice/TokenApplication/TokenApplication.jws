@@ -26,5 +26,6 @@
    <list n="listOfChildren">
       <hash><url n="URL" path="CustomUserPermissionPolicy/CustomUserPermissionPolicy.jpr"/></hash>
       <hash><url n="URL" path="TokenService/TokenService.jpr"/></hash>
+      <hash><url n="URL" path="ValidateTokenSignaturePolicy/ValidateTokenSignaturePolicy.jpr"/></hash>
    </list>
 </jws:workspace>
