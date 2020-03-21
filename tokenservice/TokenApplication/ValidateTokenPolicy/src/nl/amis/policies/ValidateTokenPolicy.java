@@ -51,13 +51,13 @@ public class ValidateTokenPolicy extends AssertionExecutor {
         super();
     }
 
-    private String getProperty(IPropertySet propertyset,String propertyname) {
+    private String getProperty(IPropertySet propertyset, String propertyname) {
         String result = propertyset.getPropertyByName(propertyname).getValue();
         if (result == null) {
-            logger.warning("Property "+propertyname+" is null!");
+            logger.warning("Property " + propertyname + " is null!");
         } else {
-            if (result.length()==0) {
-                logger.warning("Property "+propertyname+" is empty!");
+            if (result.length() == 0) {
+                logger.warning("Property " + propertyname + " is empty!");
             }
         }
         return result;
@@ -73,62 +73,65 @@ public class ValidateTokenPolicy extends AssertionExecutor {
             if (messageContext.getStage() == IMessageContext.STAGE.request) {
                 String JWTToken = "";
                 // based on https://connect2id.com/products/nimbus-jose-jwt/examples/jws-with-rsa-signature
-                HttpServletRequest request = (HttpServletRequest) messageContext.getProperty(IMessageContext.HTTP_SERVLET_REQUEST);
+                HttpServletRequest request =
+                    (HttpServletRequest) messageContext.getProperty(IMessageContext.HTTP_SERVLET_REQUEST);
                 if (request != null) {
                     if (request.getHeader("Authorization") != null) {
                         JWTToken = request.getHeader("Authorization").replace("Bearer ", "");
-                        logger.fine("Obtained JWT token: "+JWTToken);
+                        logger.fine("Obtained JWT token: " + JWTToken);
                     } else {
                         logger.warning("Authorization header is null!");
                     }
                 } else {
                     logger.warning("HttpServletRequest is null!");
                 }
-                
+
                 //Retrieve Policy bindings from Policy File
                 IAssertionBindings bindings = ((SimpleAssertion) (this.assertion)).getBindings();
                 //Get Policy Config name from Policy File
                 IConfig config = bindings.getConfigs().get(0);
                 //Get Property set name of policy
                 IPropertySet propertyset = config.getPropertySets().get(0);
-                String trusted_issuers = this.getProperty(propertyset,"trusted_issuers");
-                String expected_audience = this.getProperty(propertyset,"expected_audience");
                 
-                List<String> trusted_issuers_list = new ArrayList<String>();
-                trusted_issuers_list = Arrays.asList(trusted_issuers.split(","));
+                JWSObject jwsObject = JWSObject.parse(JWTToken);
+                JWTClaimsSet claims = JWTClaimsSet.parse(jwsObject.getPayload().toJSONObject());
                 
-                List<String> expected_audience_list = Arrays.asList((expected_audience.split(",")));
-                Set<String> expected_audience_stringset = new HashSet<String>(expected_audience_list);
-                Set<Audience> expected_audience_set = new HashSet<Audience>();
-                for (String aud : expected_audience_stringset) {
-                    expected_audience_set.add(new Audience(aud));
-                }
-                
-                JWTAssertionDetailsVerifier verifier = new JWTAssertionDetailsVerifier(expected_audience_set);
-                PlainJWT plainJWT = PlainJWT.parse(JWTToken);
-                
-                //Audience check
-                //Expiration time check
-                //Not-before time check (is set)
-                //Subject and issuer presence check
                 try {
-                    JWTClaimsSet claims = plainJWT.getJWTClaimsSet();
-                    //below throws BadJWTException in case of error
-                    verifier.verify(claims);
-                    logger.info("JWT Token claimsset audience, expiration time, not before time verification success");
-                    if (trusted_issuers_list.contains(claims.getIssuer())) {
-                        logger.info("JWT Token claimsset issuer verification success");
+                    //Expected audience, iat, exp, nbt check
+                    String expected_audience = this.getProperty(propertyset, "expected_audience");
+                    List<String> expected_audience_list = new ArrayList<String>();
+                    if (expected_audience != null) {
+                        expected_audience_list = Arrays.asList((expected_audience.split(",")));
+                        Set<String> expected_audience_stringset = new HashSet<String>(expected_audience_list);
+                        Set<Audience> expected_audience_set = new HashSet<Audience>();
+                        for (String aud : expected_audience_stringset) {
+                            expected_audience_set.add(new Audience(aud));
+                        }
+                        JWTAssertionDetailsVerifier verifier = new JWTAssertionDetailsVerifier(expected_audience_set);
+                        verifier.verify(claims);
+                        logger.info("JWT Token claimsset audience, expiration time, not before time verification success");
                     } else {
-                        logger.warning("JWT Token claimsset issuer verification failed! "+claims.getIssuer()+" not present in "+trusted_issuers);
-                        throw new BadJWTException(claims.getIssuer()+" not present in "+trusted_issuers);
+                        throw new BadJWTException("Expected audience has not been supplied in the policy configuration");
                     }
-                   
-                    result.setStatus(IResult.SUCCEEDED);
+                    //Trusted issuers check
+                    String trusted_issuers = this.getProperty(propertyset, "trusted_issuers");
+                    List<String> trusted_issuers_list = new ArrayList<String>();
+                    if (trusted_issuers != null) {
+                        trusted_issuers_list = Arrays.asList(trusted_issuers.split(","));
+                        if (trusted_issuers_list.contains(claims.getIssuer())) {
+                            logger.info("JWT Token claimsset issuer verification success");
+                        } else {
+                            logger.warning("JWT Token claimsset issuer verification failed! " + claims.getIssuer() +
+                                           " not present in " + trusted_issuers);
+                            throw new BadJWTException(claims.getIssuer() + " not present in " + trusted_issuers);
+                        }
+                    } else {
+                        throw new BadJWTException("Trusted issuers have not been supplied in the policy configuration!");
+                    }
                 } catch (BadJWTException e) {
-                    logger.warning("JWT Token claimsset verification failed: "+e.getMessage());
+                    logger.warning("JWT Token claimsset verification failed: " + e.getMessage());
                     result.setStatus(IResult.FAILED);
                 }
-                
             } else {
                 logger.info("Processing response. No check required");
                 result.setStatus(IResult.SUCCEEDED);
